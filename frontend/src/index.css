@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pink-light: #FFB6C1;
+  --color-lavender: #E6E6FA;
+  --color-beige: #F5F5DC;
+  --color-pink-dark: #FF69B4;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8F8F8;
+  /* Light neutral bg */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
