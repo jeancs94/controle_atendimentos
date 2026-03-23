@@ -12,6 +12,12 @@ class PatientBase(BaseModel):
 class PatientCreate(PatientBase):
     pass
 
+class PatientUpdate(BaseModel):
+    name: Optional[str] = None
+    created_at: Optional[date] = None
+    rate: Optional[float] = None
+    type: Optional[str] = None
+
 class Patient(PatientBase):
     id: int
 
@@ -27,6 +33,12 @@ class AppointmentBase(BaseModel):
 
 class AppointmentCreate(AppointmentBase):
     pass
+
+class AppointmentUpdate(BaseModel):
+    patient_id: Optional[int] = None
+    date: Optional[date] = None
+    time: Optional[time] = None
+    observations: Optional[str] = None
 
 class Appointment(AppointmentBase):
     id: int

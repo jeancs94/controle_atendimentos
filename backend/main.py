@@ -53,6 +53,30 @@ def read_patient(patient_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Paciente não encontrado")
     return db_patient
 
+@app.put("/patients/{patient_id}", response_model=schemas.Patient)
+def update_patient(patient_id: int, patient_update: schemas.PatientUpdate, db: Session = Depends(get_db)):
+    db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if db_patient is None:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+    
+    update_data = patient_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_patient, key, value)
+        
+    db.commit()
+    db.refresh(db_patient)
+    return db_patient
+
+@app.delete("/patients/{patient_id}")
+def delete_patient(patient_id: int, db: Session = Depends(get_db)):
+    db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if db_patient is None:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+    
+    db.delete(db_patient)
+    db.commit()
+    return {"detail": "Paciente excluído com sucesso"}
+
 # --- Appointments ---
 @app.post("/appointments", response_model=schemas.Appointment)
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
@@ -70,6 +94,35 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
 def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     appointments = db.query(models.Appointment).offset(skip).limit(limit).all()
     return appointments
+
+@app.put("/appointments/{appointment_id}", response_model=schemas.Appointment)
+def update_appointment(appointment_id: int, appointment_update: schemas.AppointmentUpdate, db: Session = Depends(get_db)):
+    db_appointment = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if db_appointment is None:
+        raise HTTPException(status_code=404, detail="Atendimento não encontrado")
+    
+    if appointment_update.patient_id is not None:
+        db_patient = db.query(models.Patient).filter(models.Patient.id == appointment_update.patient_id).first()
+        if not db_patient:
+            raise HTTPException(status_code=404, detail="Paciente não encontrado")
+
+    update_data = appointment_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_appointment, key, value)
+        
+    db.commit()
+    db.refresh(db_appointment)
+    return db_appointment
+
+@app.delete("/appointments/{appointment_id}")
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    db_appointment = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if db_appointment is None:
+        raise HTTPException(status_code=404, detail="Atendimento não encontrado")
+    
+    db.delete(db_appointment)
+    db.commit()
+    return {"detail": "Atendimento excluído com sucesso"}
 
 # --- Reports ---
 @app.get("/reports/monthly")

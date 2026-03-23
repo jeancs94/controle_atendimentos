@@ -32,8 +32,8 @@ export default function PainelRelatorios() {
         <h2 className="text-xl font-semibold text-pink-dark">Painel de Relatórios</h2>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="border-gray-300 rounded-md shadow-sm p-2 bg-white border focus:border-pink-light outline-none">
-            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-              <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('pt-BR', {month: 'long'})}</option>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+              <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('pt-BR', { month: 'long' })}</option>
             ))}
           </select>
           <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value))} className="border-gray-300 rounded-md shadow-sm p-2 bg-white border focus:border-pink-light w-24 outline-none" />
@@ -44,7 +44,7 @@ export default function PainelRelatorios() {
       </div>
 
       {loading && <p className="text-gray-500">Carregando...</p>}
-      
+
       {!loading && report && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -53,7 +53,7 @@ export default function PainelRelatorios() {
               <span className="text-3xl font-bold text-gray-800">{report.total_appointments}</span>
             </div>
             <div className="bg-pink-light p-4 rounded-lg shadow-sm border border-pink-200 flex flex-col items-center justify-center">
-              <span className="text-gray-800 font-medium">Valor Total Recebido (Mês)</span>
+              <span className="text-gray-800 font-medium">Valor Total a Receber (Mês)</span>
               <span className="text-3xl font-bold text-gray-800">R$ {report.total_value.toFixed(2)}</span>
             </div>
           </div>

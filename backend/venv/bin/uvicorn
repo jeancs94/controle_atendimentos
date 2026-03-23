@@ -1,4 +1,4 @@
-#!/home/jeanc94/controle_atendimento/backend/venv/bin/python3
+#!/home/jeanc94/controle_atendimentos/backend/venv/bin/python3.9
 # -*- coding: utf-8 -*-
 import re
 import sys
