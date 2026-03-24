@@ -9,10 +9,20 @@ DB_DIR = os.path.join(BASE_DIR, "database")
 if not os.path.exists(DB_DIR):
     os.makedirs(DB_DIR)
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'sqlite.db')}"
+# Fallback to local SQLite if DATABASE_URL is not provided (used for local dev)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+SQLALCHEMY_DATABASE_URL = DATABASE_URL or f"sqlite:///{os.path.join(DB_DIR, 'sqlite.db')}"
+
+# connect_args only applies to sqlite, otherwise leave empty
+connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args=connect_args
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
