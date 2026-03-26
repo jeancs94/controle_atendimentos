@@ -7,5 +7,5 @@ pandas==2.2.1
 python-multipart==0.0.9
 psycopg2-binary==2.9.9
 passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
+PyJWT==2.8.0
 bcrypt==4.1.3
