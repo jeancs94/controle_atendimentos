@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { getUsers, createUser, updateUser, deleteUser } from '../api';
+import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from '../api';
 
 export default function GerenciarFuncionarios() {
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [form, setForm] = useState({ full_name: '', phone: '', email: '' });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [resettingId, setResettingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -39,6 +41,7 @@ export default function GerenciarFuncionarios() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setError('');
     try {
       if (editingId) {
         await updateUser(editingId, form);
@@ -47,6 +50,8 @@ export default function GerenciarFuncionarios() {
       }
       await load();
       resetForm();
+      setSuccess(editingId ? 'Funcionário atualizado com sucesso!' : 'Funcionário cadastrado com sucesso!');
+      setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -55,21 +60,41 @@ export default function GerenciarFuncionarios() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`Excluir funcionário "${name}"?`)) return;
+    if (!confirm(`Excluir funcionário "${name}"? Esta ação não pode ser desfeita.`)) return;
+    setError('');
     try {
       await deleteUser(id);
       setFuncionarios(f => f.filter(x => x.id !== id));
+      setSuccess('Funcionário excluído.');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
       setError(e.message);
     }
   };
 
   const handleToggleActive = async (u) => {
+    setError('');
     try {
       await updateUser(u.id, { is_active: !u.is_active });
       await load();
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const handleResetPassword = async (u) => {
+    if (!confirm(`Resetar a senha de "${u.full_name}"?\n\nEle/ela precisará definir uma nova senha no próximo acesso.`)) return;
+    setResettingId(u.id);
+    setError('');
+    try {
+      await resetUserPassword(u.id);
+      await load();
+      setSuccess(`Senha de ${u.full_name} resetada. Aguarda novo acesso.`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -89,6 +114,12 @@ export default function GerenciarFuncionarios() {
         <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           {error}
           <button className="ml-2 underline" onClick={() => setError('')}>fechar</button>
+        </div>
+      )}
+
+      {success && (
+        <div className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          ✅ {success}
         </div>
       )}
 
@@ -143,9 +174,9 @@ export default function GerenciarFuncionarios() {
         <p className="text-center text-gray-500 py-8">Nenhum funcionário cadastrado.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
-              <tr className="bg-lavender/30 text-gray-700">
+              <tr className="bg-gradient-to-r from-lavender/40 to-pink-light/30 text-gray-700">
                 <th className="px-4 py-3 text-left rounded-tl-lg">Nome</th>
                 <th className="px-4 py-3 text-left">Telefone</th>
                 <th className="px-4 py-3 text-left">Status</th>
@@ -171,12 +202,20 @@ export default function GerenciarFuncionarios() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1 justify-center">
+                    <div className="flex gap-1 justify-center flex-wrap">
                       <button onClick={() => handleEdit(u)} className="px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200">
                         Editar
                       </button>
                       <button onClick={() => handleToggleActive(u)} className={`px-3 py-1 text-xs rounded-lg border ${u.is_active ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'}`}>
                         {u.is_active ? 'Desativar' : 'Ativar'}
+                      </button>
+                      <button
+                        onClick={() => handleResetPassword(u)}
+                        disabled={resettingId === u.id}
+                        className="px-3 py-1 text-xs bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 disabled:opacity-50"
+                        title="Forçar nova definição de senha no próximo acesso"
+                      >
+                        {resettingId === u.id ? '⏳' : '🔑 Reset Senha'}
                       </button>
                       <button onClick={() => handleDelete(u.id, u.full_name)} className="px-3 py-1 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200">
                         Excluir

@@ -102,6 +102,38 @@ export async function exportExcel() {
   return res.blob();
 }
 
+export async function exportExcelFiltered({ userId, year, month } = {}) {
+  const params = new URLSearchParams();
+  if (userId) params.set('user_id', userId);
+  if (year) params.set('year', year);
+  if (month) params.set('month', month);
+  const token = getToken();
+  const res = await fetch(`${API_URL}/export/excel?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Erro ao exportar Excel');
+  return res.blob();
+}
+
+export async function exportPDF({ userId, year, month } = {}) {
+  const params = new URLSearchParams();
+  if (userId) params.set('user_id', userId);
+  if (year) params.set('year', year);
+  if (month) params.set('month', month);
+  const token = getToken();
+  const res = await fetch(`${API_URL}/export/pdf?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Erro ao exportar PDF');
+  return res.blob();
+}
+
+export async function getAuditLogs(skip = 0, limit = 100) {
+  const res = await authFetch(`${API_URL}/audit-logs?skip=${skip}&limit=${limit}`);
+  if (!res.ok) throw new Error('Erro ao buscar logs');
+  return res.json();
+}
+
 // ---------- Users (Master only) ----------
 export async function getUsers() {
   const res = await authFetch(`${API_URL}/users`);
@@ -131,6 +163,15 @@ export async function updateUser(id, data) {
 export async function deleteUser(id) {
   const res = await authFetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Erro ao excluir usuário');
+  return res.json();
+}
+
+export async function resetUserPassword(id) {
+  const res = await authFetch(`${API_URL}/users/${id}/reset-password`, { method: 'PUT' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao resetar senha');
+  }
   return res.json();
 }
 

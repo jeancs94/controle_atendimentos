@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import PrimeiroAcesso from './pages/PrimeiroAcesso';
 import GerenciarFuncionarios from './pages/GerenciarFuncionarios';
+import LogsAuditoria from './pages/LogsAuditoria';
 import CadastroPaciente from './components/CadastroPaciente';
 import RegistroAtendimento from './components/RegistroAtendimento';
 import PainelRelatorios from './components/PainelRelatorios';
@@ -22,6 +23,7 @@ function AppContent() {
     { id: 'atendimentos', label: 'Agendar' },
     { id: 'relatorios', label: 'Relatórios' },
     ...(isMaster ? [{ id: 'funcionarios', label: '👥 Funcionários' }] : []),
+    ...(isMaster ? [{ id: 'logs', label: '🔍 Logs' }] : []),
   ];
 
   return (
@@ -30,7 +32,7 @@ function AppContent() {
       <nav className="bg-pink-light p-4 shadow-md w-full">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
           <h1 className="text-2xl font-bold logo-text tracking-tight text-gray-800 shrink-0">
-            🌸 Agendamentos Clínica
+            🌸 Clinica Evoluir M.M.
           </h1>
           <div className="flex flex-wrap gap-2 items-center">
             {tabs.map(t => (
@@ -66,6 +68,7 @@ function AppContent() {
           {activeTab === 'atendimentos' && <RegistroAtendimento />}
           {activeTab === 'relatorios' && <PainelRelatorios />}
           {activeTab === 'funcionarios' && isMaster && <GerenciarFuncionarios />}
+          {activeTab === 'logs' && isMaster && <LogsAuditoria />}
         </div>
       </main>
 

@@ -1,6 +1,37 @@
 import { useState, useEffect } from 'react';
 import { getPatients, createAppointment, getAppointments, updateAppointment, deleteAppointment } from '../api';
 
+// Generate time slots: 08:00 to 19:00, 40 min duration, skipping 12:00-13:00 lunch
+const generateTimeSlots = () => {
+  const slots = [];
+  let current = new Date();
+  current.setHours(8, 0, 0, 0);
+
+  const end = new Date();
+  end.setHours(19, 0, 0, 0);
+
+  while (current <= end) {
+    const hours = current.getHours();
+    const minutes = current.getMinutes();
+    
+    // Skip lunch: 12:00 to 13:00
+    // A session starting at 11:20 ends at 12:00, so it's fine.
+    // The next session should start at 13:00.
+    if (hours === 12) {
+      current.setHours(13, 0, 0, 0);
+      continue;
+    }
+
+    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    slots.push(timeStr);
+    
+    current.setMinutes(current.getMinutes() + 40);
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots();
+
 export default function RegistroAtendimento() {
   const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -35,6 +66,12 @@ export default function RegistroAtendimento() {
     }
   };
 
+  const isWeekend = (dateStr) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    const day = date.getDay();
+    return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
+  };
+
   const resetForm = () => {
     setFormData({
       patient_id: patients.length > 0 ? patients[0].id.toString() : '',
@@ -48,6 +85,12 @@ export default function RegistroAtendimento() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus(null);
+
+    if (isWeekend(formData.date)) {
+      setStatus({ type: 'error', message: 'Não é possível marcar atendimentos aos fins de semana.' });
+      return;
+    }
+
     try {
       let fData = { ...formData, time: formData.time.length === 5 ? formData.time + ":00" : formData.time }; 
       
@@ -114,11 +157,34 @@ export default function RegistroAtendimento() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 font-medium mb-1">Data</label>
-              <input required type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 border focus:border-pink-light outline-none" />
+              <input 
+                required 
+                type="date" 
+                value={formData.date} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData({...formData, date: val});
+                  if (isWeekend(val)) {
+                    setStatus({ type: 'error', message: 'Atenção: A data selecionada cai em um fim de semana.' });
+                  } else {
+                    if (status?.message?.includes('fim de semana')) setStatus(null);
+                  }
+                }} 
+                className={`w-full border-gray-300 rounded-md shadow-sm p-2 border focus:border-pink-light outline-none ${isWeekend(formData.date) ? 'bg-red-50 border-red-300' : 'bg-gray-50'}`} 
+              />
             </div>
             <div>
               <label className="block text-gray-700 font-medium mb-1">Horário</label>
-              <input required type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-white border focus:border-pink-light outline-none" />
+              <select 
+                required 
+                value={formData.time} 
+                onChange={e => setFormData({...formData, time: e.target.value})} 
+                className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-white border focus:border-pink-light outline-none"
+              >
+                {TIME_SLOTS.map(slot => (
+                  <option key={slot} value={slot}>{slot}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>
@@ -126,7 +192,7 @@ export default function RegistroAtendimento() {
             <textarea rows="3" value={formData.observations} onChange={e => setFormData({...formData, observations: e.target.value})} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 border focus:border-pink-light outline-none" placeholder="Ex: Paciente relatou melhora..."></textarea>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={patients.length === 0} className="flex-1 bg-pink-light text-gray-800 font-semibold py-2 px-4 rounded-md shadow hover:bg-pink-dark hover:text-white transition-colors disabled:opacity-50">
+            <button type="submit" disabled={patients.length === 0 || isWeekend(formData.date)} className="flex-1 bg-pink-light text-gray-800 font-semibold py-2 px-4 rounded-md shadow hover:bg-pink-dark hover:text-white transition-colors disabled:opacity-50">
               {editingId ? 'Salvar Alterações' : 'Registrar Sessão'}
             </button>
             {editingId && (
@@ -157,7 +223,11 @@ export default function RegistroAtendimento() {
               </thead>
               <tbody>
                 {/* Sort appointments by date descending normally, but for simplicity just show them */}
-                {appointments.slice().sort((a,b) => new Date(b.date) - new Date(a.date)).map(appt => (
+                {appointments.slice().sort((a,b) => {
+                   const dateA = new Date(a.date + 'T' + a.time);
+                   const dateB = new Date(b.date + 'T' + b.time);
+                   return dateB - dateA;
+                }).map(appt => (
                   <tr key={appt.id} className="border-b border-lavender hover:bg-gray-50/50">
                     <td className="py-2 px-4 whitespace-nowrap text-gray-800">
                       {new Date(appt.date + 'T00:00:00').toLocaleDateString('pt-BR')}
@@ -183,3 +253,4 @@ export default function RegistroAtendimento() {
     </div>
   );
 }
+
