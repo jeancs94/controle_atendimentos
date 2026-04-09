@@ -136,6 +136,37 @@ def set_password(data: schemas.SetPasswordRequest, db: Session = Depends(get_db)
     return {"detail": "Senha definida com sucesso"}
 
 
+@app.get("/users/me", response_model=schemas.UserOut)
+def get_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
+
+@app.put("/users/me", response_model=schemas.UserOut)
+def update_me(data: schemas.UserMeUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if data.full_name:
+        current_user.full_name = data.full_name
+    if data.email:
+        current_user.email = data.email
+    db.commit()
+    db.refresh(current_user)
+    create_audit(db, current_user.id, "UPDATE_PROFILE", "user", current_user.id)
+    return current_user
+
+
+@app.post("/auth/change-password")
+def change_password(data: schemas.PasswordChangeRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Senha atual incorreta")
+    
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Nova senha deve ter no mínimo 6 caracteres")
+    
+    current_user.password_hash = hash_password(data.new_password)
+    db.commit()
+    create_audit(db, current_user.id, "CHANGE_PASSWORD", "user", current_user.id)
+    return {"detail": "Senha alterada com sucesso"}
+
+
 # ── Clinics (Superadmin Only) ────────────────────────────────
 
 @app.get("/clinics", response_model=List[schemas.Clinic])

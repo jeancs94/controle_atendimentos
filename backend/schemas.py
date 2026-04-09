@@ -21,6 +21,14 @@ class TokenResponse(BaseModel):
     must_change_password: bool
     mfa_required: bool = False
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UserMeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+
 # --- Clinic Schemas ---
 class ClinicBase(BaseModel):
     name: str

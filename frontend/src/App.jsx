@@ -9,6 +9,7 @@ import CadastroPaciente from './components/CadastroPaciente';
 import RegistroAtendimento from './components/RegistroAtendimento';
 import PainelRelatorios from './components/PainelRelatorios';
 import MeusRendimentos from './components/MeusRendimentos';
+import MeuPerfil from './components/MeuPerfil';
 
 function AppContent() {
   const { user, logout, isSuperAdmin, isAdmin, isEmployee } = useAuth();
@@ -28,6 +29,7 @@ function AppContent() {
       { id: 'clinicas', label: '🏥 Clínicas' },
       { id: 'funcionarios', label: '👥 Administradores' },
       { id: 'logs', label: '🔍 Logs Globais' },
+      { id: 'perfil', label: '👤 Meu Perfil' },
     ];
   } else if (isAdmin) { // Clinic Owner
     tabs = [
@@ -35,12 +37,14 @@ function AppContent() {
       { id: 'atendimentos', label: 'Agendar' },
       { id: 'relatorios', label: 'Relatórios & Financeiro' },
       { id: 'funcionarios', label: '👥 Equipe' },
+      { id: 'perfil', label: '👤 Meu Perfil' },
     ];
   } else { // Employee
     tabs = [
       { id: 'cadastro', label: 'Meus Pacientes' },
       { id: 'atendimentos', label: 'Minha Agenda' },
       { id: 'meus_rendimentos', label: 'Meus Rendimentos' },
+      { id: 'perfil', label: '👤 Meu Perfil' },
     ];
   }
 
@@ -95,8 +99,9 @@ function AppContent() {
           {activeTab === 'relatorios' && isAdmin && <PainelRelatorios />}
           {activeTab === 'meus_rendimentos' && isEmployee && <MeusRendimentos />}
           
-          {activeTab === 'funcionarios' && (isSuperAdmin || isAdmin) && <GerenciarFuncionarios />}
-          {activeTab === 'logs' && isSuperAdmin && <LogsAuditoria />}
+          { activeTab === 'funcionarios' && (isSuperAdmin || isAdmin) && <GerenciarFuncionarios />}
+          { activeTab === 'logs' && isSuperAdmin && <LogsAuditoria />}
+          { activeTab === 'perfil' && <MeuPerfil />}
         </div>
       </main>
 

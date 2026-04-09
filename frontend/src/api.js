@@ -195,6 +195,27 @@ export async function setPassword(phone, newPassword) {
   return res.json();
 }
 
+export async function updateMyProfile(data) {
+  const res = await authFetch(`${API_URL}/users/me`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar perfil');
+  return res.json();
+}
+
+export async function changeMyPassword(data) {
+  const res = await authFetch(`${API_URL}/auth/change-password`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao trocar senha');
+  }
+  return res.json();
+}
+
 // ---------- Clinics (Superadmin only) ----------
 export async function getClinics() {
   const res = await authFetch(`${API_URL}/clinics`);
