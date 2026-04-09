@@ -7,7 +7,6 @@ import models
 
 bearer_scheme = HTTPBearer()
 
-
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
@@ -33,8 +32,17 @@ def get_current_user(
     return user
 
 
-def require_master(current_user: models.User = Depends(get_current_user)) -> models.User:
-    if current_user.role != "master":
+def require_superadmin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito ao superadmin",
+        )
+    return current_user
+
+
+def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role not in ["superadmin", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso restrito ao administrador",
@@ -43,5 +51,5 @@ def require_master(current_user: models.User = Depends(get_current_user)) -> mod
 
 
 def require_employee(current_user: models.User = Depends(get_current_user)) -> models.User:
-    """Any authenticated user (master or employee)."""
+    """Any authenticated user (superadmin, admin or employee)."""
     return current_user

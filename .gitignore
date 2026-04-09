@@ -1,0 +1,18 @@
+# Python
+backend/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+backend/.python-version
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Database
+database/sqlite.db
+
+# OS
+.DS_Store

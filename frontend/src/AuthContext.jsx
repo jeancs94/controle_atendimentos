@@ -22,21 +22,20 @@ export function AuthProvider({ children }) {
     }
     const data = await res.json();
     localStorage.setItem('auth_token', data.access_token);
-    localStorage.setItem('auth_user', JSON.stringify({
+    
+    const userData = {
       id: data.user_id,
+      clinic_id: data.clinic_id,
       full_name: data.full_name,
       role: data.role,
       must_change_password: data.must_change_password,
+      mfa_required: data.mfa_required,
       phone,
-    }));
+    };
+    
+    localStorage.setItem('auth_user', JSON.stringify(userData));
     setToken(data.access_token);
-    setUser({
-      id: data.user_id,
-      full_name: data.full_name,
-      role: data.role,
-      must_change_password: data.must_change_password,
-      phone,
-    });
+    setUser(userData);
     return data;
   };
 
@@ -55,10 +54,12 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const isMaster = user?.role === 'master';
+  const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'; // Technically a superadmin has admin privileges
+  const isEmployee = user?.role === 'employee';
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, isMaster, clearMustChangePassword }}>
+    <AuthContext.Provider value={{ token, user, login, logout, isSuperAdmin, isAdmin, isEmployee, clearMustChangePassword }}>
       {children}
     </AuthContext.Provider>
   );

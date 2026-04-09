@@ -194,3 +194,38 @@ export async function setPassword(phone, newPassword) {
   }
   return res.json();
 }
+
+// ---------- Clinics (Superadmin only) ----------
+export async function getClinics() {
+  const res = await authFetch(`${API_URL}/clinics`);
+  if (!res.ok) throw new Error('Erro ao buscar clínicas');
+  return res.json();
+}
+
+export async function createClinic(data) {
+  const res = await authFetch(`${API_URL}/clinics`, {
+    method: 'POST', body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Erro ao criar clínica');
+  return res.json();
+}
+
+export async function updateClinic(id, data) {
+  const res = await authFetch(`${API_URL}/clinics/${id}`, {
+    method: 'PUT', body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar clínica');
+  return res.json();
+}
+
+// ---------- Payroll ----------
+export async function payEmployee(data) {
+  const res = await authFetch(`${API_URL}/payrolls`, {
+    method: 'POST', body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao efetuar pagamento');
+  }
+  return res.json();
+}
