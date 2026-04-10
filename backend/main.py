@@ -54,11 +54,19 @@ def create_audit(db: Session, user_id: int | None, action: str, resource: str,
 
 
 def create_default_superadmin(db: Session):
+    target_phone = "19993873359"
     existing = db.query(models.User).filter(models.User.role == "superadmin").first()
-    if not existing:
+    
+    if existing:
+        if existing.phone != target_phone:
+            old_phone = existing.phone
+            existing.phone = target_phone
+            db.commit()
+            print(f"✅ Telefone do superadmin atualizado: {old_phone} -> {target_phone}")
+    else:
         sa = models.User(
             full_name="Super Administrador",
-            phone="11999999999",
+            phone=target_phone,
             email=None,
             password_hash=hash_password("admin123"),
             role="superadmin",
@@ -68,7 +76,7 @@ def create_default_superadmin(db: Session):
         )
         db.add(sa)
         db.commit()
-        print("✅ Usuário superadmin padrão criado: telefone=11999999999, senha=admin123")
+        print(f"✅ Usuário superadmin criado: telefone={target_phone}, senha=admin123")
 
 
 @app.on_event("startup")
