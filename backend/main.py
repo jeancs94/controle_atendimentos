@@ -618,3 +618,274 @@ def get_monthly_report(year: int, month: int, db: Session = Depends(get_db), cur
 @app.get("/audit-logs", response_model=List[schemas.AuditLogOut])
 def get_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(require_superadmin)):
     return db.query(models.AuditLog).order_by(models.AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
+
+
+def _build_export_query(db: Session, current_user, user_id: Optional[int], year: Optional[int], month: Optional[int]):
+    """Builds the appointment query for exports, respecting access rules."""
+    q = db.query(models.Appointment)
+
+    if current_user.role == "admin":
+        q = q.filter(models.Appointment.clinic_id == current_user.clinic_id)
+        if user_id:
+            q = q.filter(models.Appointment.created_by == user_id)
+    elif current_user.role == "employee":
+        q = q.filter(models.Appointment.created_by == current_user.id)
+    # superadmin: no clinic filter, can optionally filter by user_id
+    elif user_id:
+        q = q.filter(models.Appointment.created_by == user_id)
+
+    if year:
+        q = q.filter(extract('year', models.Appointment.date) == year)
+    if month:
+        q = q.filter(extract('month', models.Appointment.date) == month)
+
+    return q.order_by(models.Appointment.date, models.Appointment.time).all()
+
+
+@app.get("/export/excel")
+def export_excel(
+    user_id: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_employee),
+):
+    appointments = _build_export_query(db, current_user, user_id, year, month)
+
+    rows = []
+    emp_summary: dict = {}
+
+    for appt in appointments:
+        patient = appt.patient
+        employee = appt.created_by_user
+        eid = appt.created_by
+        rows.append({
+            "Data": appt.date.strftime("%d/%m/%Y") if appt.date else "",
+            "Horário": appt.time.strftime("%H:%M") if appt.time else "",
+            "Paciente": patient.name if patient else "",
+            "Tipo": patient.type if patient else "",
+            "Valor (R$)": patient.rate if patient else 0.0,
+            "Funcionário": employee.full_name if employee else "",
+            "Observações": appt.observations or "",
+        })
+        if eid not in emp_summary:
+            emp_summary[eid] = {"Funcionário": employee.full_name if employee else "—",
+                                "Total de Atendimentos": 0, "Total de Rendimentos (R$)": 0.0, "_seen": set()}
+        emp_summary[eid]["Total de Atendimentos"] += 1
+        if patient:
+            if patient.type == "Avulso":
+                emp_summary[eid]["Total de Rendimentos (R$)"] += patient.rate
+            elif patient.id not in emp_summary[eid]["_seen"]:
+                emp_summary[eid]["Total de Rendimentos (R$)"] += patient.rate
+                emp_summary[eid]["_seen"].add(patient.id)
+
+    summary_rows = [{"Funcionário": v["Funcionário"], "Total de Atendimentos": v["Total de Atendimentos"],
+                     "Total de Rendimentos (R$)": round(v["Total de Rendimentos (R$)"], 2)}
+                    for v in emp_summary.values()]
+
+    suffix = f"_func{user_id}" if user_id else ""
+    filename = f"relatorio_{year or 'todos'}_{month or 'todos'}{suffix}.xlsx"
+    filepath = os.path.join(EXPORTS_DIR, filename)
+
+    with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+        pd.DataFrame(rows).to_excel(writer, sheet_name="Atendimentos", index=False)
+        if summary_rows:
+            df_sum = pd.DataFrame(summary_rows)
+            total_row = pd.DataFrame([{"Funcionário": "TOTAL",
+                                        "Total de Atendimentos": df_sum["Total de Atendimentos"].sum(),
+                                        "Total de Rendimentos (R$)": round(df_sum["Total de Rendimentos (R$)"].sum(), 2)}])
+            pd.concat([df_sum, total_row], ignore_index=True).to_excel(
+                writer, sheet_name="Resumo por Funcionário", index=False)
+
+    create_audit(db, current_user.id, "EXPORT_EXCEL", "appointment", detail=f"Exportou Excel: {filename}")
+    return FileResponse(
+        filepath,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename,
+    )
+
+
+@app.get("/export/pdf")
+def export_pdf(
+    user_id: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_employee),
+):
+    from calendar import month_name as _month_name
+    appointments = _build_export_query(db, current_user, user_id, year, month)
+
+    # ── Per-employee summary ───────────────────────────────────
+    emp_summary: dict = {}
+    for appt in appointments:
+        patient = appt.patient
+        employee = appt.created_by_user
+        eid = appt.created_by
+        if eid not in emp_summary:
+            emp_summary[eid] = {"name": employee.full_name if employee else "—",
+                                "count": 0, "total": 0.0, "_seen": set()}
+        emp_summary[eid]["count"] += 1
+        if patient:
+            if patient.type == "Avulso":
+                emp_summary[eid]["total"] += patient.rate
+            elif patient.id not in emp_summary[eid]["_seen"]:
+                emp_summary[eid]["total"] += patient.rate
+                emp_summary[eid]["_seen"].add(patient.id)
+
+    grand_total_val = sum(v["total"] for v in emp_summary.values())
+    grand_total_appts = len(appointments)
+
+    def fmt_brl(v: float) -> str:
+        return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    # ── PDF setup ──────────────────────────────────────────────
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+    styles = getSampleStyleSheet()
+    PURPLE = colors.HexColor("#7B5EA7")
+    LIGHT_PURPLE = colors.HexColor("#F3ECFC")
+    PURPLE_BORDER = colors.HexColor("#CCBBEE")
+    title_style = ParagraphStyle("title_", parent=styles["Heading1"], alignment=TA_CENTER,
+                                  fontSize=15, textColor=PURPLE, spaceAfter=4)
+    subtitle_style = ParagraphStyle("sub_", parent=styles["Normal"], alignment=TA_CENTER,
+                                     fontSize=10, textColor=colors.HexColor("#555555"), spaceAfter=2)
+    section_style = ParagraphStyle("sec_", parent=styles["Heading2"], fontSize=11,
+                                    textColor=PURPLE, spaceBefore=10, spaceAfter=4)
+
+    # ── Resolve helpers ────────────────────────────────────────
+    clinic = None
+    if current_user.clinic_id:
+        clinic = db.query(models.Clinic).filter(models.Clinic.id == current_user.clinic_id).first()
+
+    period_label = ""
+    if year and month:
+        try:
+            period_label = f"{_month_name[month]} / {year}"
+        except Exception:
+            period_label = f"{month}/{year}"
+    elif year:
+        period_label = str(year)
+
+    filtered_emp_name = None
+    if user_id:
+        target_user = db.query(models.User).filter(models.User.id == user_id).first()
+        if target_user:
+            filtered_emp_name = target_user.full_name
+
+    elements = []
+
+    # ── Header ─────────────────────────────────────────────────
+    elements.append(Paragraph(clinic.name if clinic else "Relatório de Atendimentos", title_style))
+    if filtered_emp_name:
+        elements.append(Paragraph(f"Funcionário: {filtered_emp_name}", subtitle_style))
+    if period_label:
+        elements.append(Paragraph(f"Período: {period_label}", subtitle_style))
+    elements.append(Spacer(1, 0.3*cm))
+
+    # ── Grand-totals box ───────────────────────────────────────
+    totals_table = Table(
+        [["Total de Atendimentos", "Total de Rendimentos"],
+         [str(grand_total_appts), fmt_brl(grand_total_val)]],
+        colWidths=[9*cm, 9*cm])
+    totals_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), PURPLE),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("BACKGROUND", (0, 1), (-1, 1), LIGHT_PURPLE),
+        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 1), (-1, 1), 14),
+        ("TEXTCOLOR", (0, 1), (-1, 1), PURPLE),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("GRID", (0, 0), (-1, -1), 0.5, PURPLE_BORDER),
+    ]))
+    elements.append(totals_table)
+    elements.append(Spacer(1, 0.4*cm))
+
+    # ── Per-employee summary (multi-employee only) ─────────────
+    if len(emp_summary) > 1:
+        elements.append(Paragraph("Resumo por Funcionário", section_style))
+        emp_rows = [["Funcionário", "Atendimentos", "Total a Pagar"]]
+        for info in emp_summary.values():
+            emp_rows.append([info["name"], str(info["count"]), fmt_brl(info["total"])])
+        emp_rows.append(["TOTAL GERAL", str(grand_total_appts), fmt_brl(grand_total_val)])
+        last = len(emp_rows) - 1
+        emp_tbl = Table(emp_rows, colWidths=[8*cm, 4*cm, 6*cm], repeatRows=1)
+        emp_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), PURPLE),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, last - 1), [colors.white, LIGHT_PURPLE]),
+            ("BACKGROUND", (0, last), (-1, last), colors.HexColor("#EDE0FF")),
+            ("FONTNAME", (0, last), (-1, last), "Helvetica-Bold"),
+            ("TEXTCOLOR", (0, last), (-1, last), PURPLE),
+            ("GRID", (0, 0), (-1, -1), 0.4, PURPLE_BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(emp_tbl)
+        elements.append(Spacer(1, 0.5*cm))
+
+    # ── Appointment detail table ───────────────────────────────
+    elements.append(Paragraph("Detalhamento de Atendimentos", section_style))
+    if not appointments:
+        elements.append(Paragraph("Nenhum atendimento encontrado para o período.", styles["Normal"]))
+    else:
+        show_emp_col = not filtered_emp_name
+        if show_emp_col:
+            header = ["Data", "Horário", "Paciente", "Tipo", "Valor (R$)", "Funcionário"]
+            col_widths = [2.5*cm, 2*cm, 5*cm, 3*cm, 2.5*cm, 4*cm]
+        else:
+            header = ["Data", "Horário", "Paciente", "Tipo", "Valor (R$)", "Observações"]
+            col_widths = [2.5*cm, 2*cm, 5*cm, 3*cm, 2.5*cm, 4*cm]
+        data = [header]
+        for appt in appointments:
+            patient = appt.patient
+            employee = appt.created_by_user
+            rate_str = fmt_brl(patient.rate) if patient else "-"
+            last_col = (employee.full_name if employee else "") if show_emp_col else (appt.observations or "")
+            data.append([
+                appt.date.strftime("%d/%m/%Y") if appt.date else "",
+                appt.time.strftime("%H:%M") if appt.time else "",
+                patient.name if patient else "",
+                patient.type if patient else "",
+                rate_str,
+                last_col,
+            ])
+        detail_tbl = Table(data, colWidths=col_widths, repeatRows=1)
+        detail_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), PURPLE),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT_PURPLE]),
+            ("GRID", (0, 0), (-1, -1), 0.4, PURPLE_BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(detail_tbl)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    suffix = f"_func{user_id}" if user_id else ""
+    filename = f"relatorio_{year or 'todos'}_{month or 'todos'}{suffix}.pdf"
+    create_audit(db, current_user.id, "EXPORT_PDF", "appointment", detail=f"Exportou PDF: {filename}")
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
