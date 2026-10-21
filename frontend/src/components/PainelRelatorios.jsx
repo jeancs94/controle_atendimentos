@@ -192,14 +192,22 @@ export default function PainelRelatorios() {
                                  {payingLoading === emp.user_id ? 'Processando...' : '💰 Pagar'}
                                </button>
                             )}
-                            <button
-                              onClick={() => handleExportExcel(emp.user_id)}
-                              disabled={!!exporting}
-                              title="Exportar Planilha Individual"
-                              className="px-2 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 disabled:opacity-50"
-                            >
-                              XLS
-                            </button>
+                             <button
+                               onClick={() => handleExportExcel(emp.user_id)}
+                               disabled={!!exporting}
+                               title="Exportar Planilha Individual"
+                               className="px-2 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 disabled:opacity-50"
+                             >
+                               XLS
+                             </button>
+                             <button
+                               onClick={() => handleExportPDF(emp.user_id)}
+                               disabled={!!exporting}
+                               title="Exportar PDF Individual"
+                               className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                             >
+                               {exporting === `pdf-${emp.user_id}` ? '⏳' : 'PDF'}
+                             </button>
                           </div>
                         </td>
                       </tr>
