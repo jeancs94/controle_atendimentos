@@ -57,13 +57,15 @@ class UserCreate(BaseModel):
     full_name: str
     phone: str
     email: Optional[str] = None
+    cargo: Optional[str] = None
     clinic_id: Optional[int] = None
-    role: str = "employee"
+    role: str = "Funcionário"
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    cargo: Optional[str] = None
     is_active: Optional[bool] = None
     clinic_id: Optional[int] = None
     role: Optional[str] = None
@@ -74,6 +76,7 @@ class UserOut(BaseModel):
     full_name: str
     phone: str
     email: Optional[str] = None
+    cargo: Optional[str] = None
     role: str
     is_active: bool
     must_change_password: bool
@@ -96,17 +99,20 @@ class UserEarnings(BaseModel):
 class PatientBase(BaseModel):
     name: str
     created_at: date
-    rate: float
-    type: str  # 'Avulso' ou 'Pacote Mensal'
+    rate: Optional[float] = None
+    type: Optional[str] = None  # legado; o tipo do atendimento agora fica no agendamento
+    is_aba: bool = False
 
 class PatientCreate(PatientBase):
-    pass
+    clinic_id: Optional[int] = None
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
     created_at: Optional[date] = None
     rate: Optional[float] = None
     type: Optional[str] = None
+    is_aba: Optional[bool] = None
+    clinic_id: Optional[int] = None
 
 class Patient(PatientBase):
     id: int
@@ -119,24 +125,54 @@ class Patient(PatientBase):
 # --- Appointment Schemas ---
 class AppointmentBase(BaseModel):
     patient_id: int
+    professional_id: Optional[int] = None
     date: date
     time: time
     observations: Optional[str] = None
+    type: str = "Avulso"
+    value: Optional[float] = None
+    recurring: bool = False
 
 class AppointmentCreate(AppointmentBase):
     pass
 
 class AppointmentUpdate(BaseModel):
     patient_id: Optional[int] = None
+    professional_id: Optional[int] = None
     date: Optional[date] = None
     time: Optional[time] = None
     observations: Optional[str] = None
+    type: Optional[str] = None
+    value: Optional[float] = None
+    recurring: Optional[bool] = None
 
 class Appointment(AppointmentBase):
     id: int
     clinic_id: int
     created_by: Optional[int] = None
+    recurring: bool = False
     patient: Optional[Patient] = None
+    professional: Optional[UserOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ScheduleChangeRequestCreate(BaseModel):
+    patient_id: int
+    requested_date: date
+    requested_time: time
+    message: str
+
+class ScheduleChangeRequestOut(BaseModel):
+    id: int
+    patient_id: int
+    professional_id: int
+    requested_date: date
+    requested_time: time
+    message: str
+    status: str = "pending"
+    created_at: datetime
 
     class Config:
         from_attributes = True

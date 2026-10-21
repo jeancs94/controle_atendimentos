@@ -4,33 +4,22 @@ import { getPatients, createAppointment, getAppointments, updateAppointment, del
 // Generate time slots: 08:00 to 19:00, 40 min duration, skipping 12:00-13:00 lunch
 const generateTimeSlots = () => {
   const slots = [];
-  let current = new Date();
-  current.setHours(8, 0, 0, 0);
-
-  const end = new Date();
-  end.setHours(19, 0, 0, 0);
-
-  while (current <= end) {
-    const hours = current.getHours();
-    const minutes = current.getMinutes();
-    
-    // Skip lunch: 12:00 to 13:00
-    // A session starting at 11:20 ends at 12:00, so it's fine.
-    // The next session should start at 13:00.
-    if (hours === 12) {
-      current.setHours(13, 0, 0, 0);
-      continue;
-    }
-
-    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    slots.push(timeStr);
-    
-    current.setMinutes(current.getMinutes() + 40);
-  }
-  return slots;
+  const morning = ['08:00', '08:40', '09:20', '10:00', '10:40', '11:20'];
+  const afternoon = ['13:00', '13:40', '14:20', '15:00', '15:40', '16:20', '17:00', '17:40', '18:20'];
+  return [...morning, ...afternoon];
 };
 
 const TIME_SLOTS = generateTimeSlots();
+
+const formatDateBR = (value) => {
+  if (!value) return '-';
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '-';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 export default function RegistroAtendimento() {
   const [patients, setPatients] = useState([]);
@@ -38,6 +27,9 @@ export default function RegistroAtendimento() {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     patient_id: '',
+    professional_id: '',
+    type: 'Avulso',
+    value: '0',
     date: new Date().toISOString().split('T')[0],
     time: '08:00',
     observations: ''
@@ -75,6 +67,9 @@ export default function RegistroAtendimento() {
   const resetForm = () => {
     setFormData({
       patient_id: patients.length > 0 ? patients[0].id.toString() : '',
+      professional_id: '',
+      type: 'Avulso',
+      value: '0',
       date: new Date().toISOString().split('T')[0],
       time: '08:00',
       observations: ''
@@ -92,8 +87,13 @@ export default function RegistroAtendimento() {
     }
 
     try {
-      let fData = { ...formData, time: formData.time.length === 5 ? formData.time + ":00" : formData.time }; 
-      
+      let fData = {
+        ...formData,
+        professional_id: formData.professional_id ? Number(formData.professional_id) : null,
+        value: Number(formData.value) || 0,
+        time: formData.time.length === 5 ? formData.time + ":00" : formData.time,
+      };
+
       if (editingId) {
         await updateAppointment(editingId, fData);
         setStatus({ type: 'success', message: 'Atendimento atualizado com sucesso!' });
@@ -112,8 +112,11 @@ export default function RegistroAtendimento() {
     setEditingId(appt.id);
     setFormData({
       patient_id: appt.patient_id.toString(),
+      professional_id: appt.professional_id ? String(appt.professional_id) : '',
+      type: appt.type || 'Avulso',
+      value: appt.value ? String(appt.value) : '0',
       date: appt.date,
-      time: appt.time.substring(0, 5), // Format HH:MM:SS to HH:MM for input
+      time: appt.time ? appt.time.substring(0, 5) : '08:00',
       observations: appt.observations || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -187,6 +190,19 @@ export default function RegistroAtendimento() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-700 font-medium mb-1">Tipo do atendimento</label>
+              <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-white border focus:border-pink-light outline-none">
+                <option value="Avulso">Avulso</option>
+                <option value="Pacote Mensal">Pacote Mensal</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-1">Valor do atendimento (R$)</label>
+              <input type="number" step="0.01" min="0" value={formData.value} onChange={e => setFormData({ ...formData, value: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 border focus:border-pink-light outline-none" />
+            </div>
+          </div>
           <div>
             <label className="block text-gray-700 font-medium mb-1">Observações (Opcional)</label>
             <textarea rows="3" value={formData.observations} onChange={e => setFormData({...formData, observations: e.target.value})} className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 border focus:border-pink-light outline-none" placeholder="Ex: Paciente relatou melhora..."></textarea>
@@ -230,7 +246,7 @@ export default function RegistroAtendimento() {
                 }).map(appt => (
                   <tr key={appt.id} className="border-b border-lavender hover:bg-gray-50/50">
                     <td className="py-2 px-4 whitespace-nowrap text-gray-800">
-                      {new Date(appt.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      {formatDateBR(appt.date)}
                     </td>
                     <td className="py-2 px-4 text-gray-600">{appt.time.substring(0, 5)}</td>
                     <td className="py-2 px-4 font-medium text-gray-800">{appt.patient?.name || 'Desconhecido'}</td>

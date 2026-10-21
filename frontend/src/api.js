@@ -6,6 +6,10 @@ function getToken() {
 
 async function authFetch(url, options = {}) {
   const token = getToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -65,6 +69,31 @@ export async function createAppointment(data) {
 export async function getAppointments() {
   const res = await authFetch(`${API_URL}/appointments`);
   if (!res.ok) throw new Error('Erro ao buscar atendimentos');
+  return res.json();
+}
+
+export async function createScheduleChangeRequest(data) {
+  const res = await authFetch(`${API_URL}/schedule-change-requests`, {
+    method: 'POST', body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || 'Erro ao enviar solicitação');
+  }
+  return res.json();
+}
+
+export async function getScheduleChangeRequests() {
+  const res = await authFetch(`${API_URL}/schedule-change-requests`);
+  if (!res.ok) throw new Error('Erro ao buscar solicitações');
+  return res.json();
+}
+
+export async function updateScheduleChangeRequestStatus(id, status) {
+  const res = await authFetch(`${API_URL}/schedule-change-requests/${id}/status?status=${encodeURIComponent(status)}`, {
+    method: 'PUT',
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar solicitação');
   return res.json();
 }
 

@@ -28,6 +28,7 @@ class User(Base):
     phone = Column(String, unique=True, nullable=False, index=True)  # login
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)  # null until first login
+    cargo = Column(String, nullable=True, default="")
     role = Column(String, default="employee")  # "superadmin", "admin" or "employee"
     is_active = Column(Boolean, default=True)
     must_change_password = Column(Boolean, default=True)
@@ -35,10 +36,12 @@ class User(Base):
 
     clinic = relationship("Clinic", back_populates="users")
     patients = relationship("Patient", back_populates="created_by_user")
-    appointments = relationship("Appointment", back_populates="created_by_user")
+    appointments = relationship("Appointment", foreign_keys="[Appointment.created_by]", back_populates="created_by_user")
+    assigned_appointments = relationship("Appointment", foreign_keys="[Appointment.professional_id]", back_populates="professional")
     audit_logs = relationship("AuditLog", back_populates="user")
     payrolls_received = relationship("Payroll", foreign_keys="[Payroll.user_id]", back_populates="user")
     payrolls_paid = relationship("Payroll", foreign_keys="[Payroll.paid_by]", back_populates="paid_by_admin")
+    schedule_change_requests = relationship("ScheduleChangeRequest", foreign_keys="[ScheduleChangeRequest.professional_id]", back_populates="professional")
 
 
 class Patient(Base):
@@ -50,11 +53,13 @@ class Patient(Base):
     created_at = Column(Date)
     rate = Column(Float)
     type = Column(String)  # 'Avulso' ou 'Pacote Mensal'
+    is_aba = Column(Boolean, default=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     clinic = relationship("Clinic", back_populates="patients")
     appointments = relationship("Appointment", back_populates="patient", cascade="all, delete")
     created_by_user = relationship("User", back_populates="patients")
+    schedule_change_requests = relationship("ScheduleChangeRequest", back_populates="patient", cascade="all, delete")
 
 
 class Appointment(Base):
@@ -63,14 +68,19 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
     patient_id = Column(Integer, ForeignKey("patients.id"))
+    professional_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     date = Column(Date)
     time = Column(Time)
     observations = Column(Text, nullable=True)
+    type = Column(String, default="Avulso")
+    value = Column(Float, nullable=True)
+    recurring = Column(Boolean, default=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     clinic = relationship("Clinic", back_populates="appointments")
     patient = relationship("Patient", back_populates="appointments")
-    created_by_user = relationship("User", back_populates="appointments")
+    created_by_user = relationship("User", foreign_keys=[created_by], back_populates="appointments")
+    professional = relationship("User", foreign_keys=[professional_id], back_populates="assigned_appointments")
 
 
 class Payroll(Base):
@@ -102,3 +112,19 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class ScheduleChangeRequest(Base):
+    __tablename__ = "schedule_change_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    professional_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    requested_date = Column(Date, nullable=False)
+    requested_time = Column(Time, nullable=False)
+    message = Column(Text, nullable=False)
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="schedule_change_requests")
+    professional = relationship("User", foreign_keys=[professional_id], back_populates="schedule_change_requests")

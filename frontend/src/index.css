@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --color-pink-light: #FFB6C1;
-  --color-lavender: #E6E6FA;
-  --color-beige: #F5F5DC;
-  --color-pink-dark: #FF69B4;
+  --color-pink-light: #dfeeff;
+  --color-lavender: #dfeafc;
+  --color-beige: #edf4ff;
+  --color-pink-dark: #0b2344;
 }
 
 body {
@@ -14,9 +14,17 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #F8F8F8;
-  /* Light neutral bg */
+  background: linear-gradient(180deg, #edf4ff 0%, #eef7ff 100%);
+  color: #102848;
 }
+
+.bg-pink-light { background-color: #dfeeff !important; }
+.bg-pink-dark { background-color: #0b2344 !important; }
+.text-pink-dark { color: #0b2344 !important; }
+.bg-lavender { background-color: #dfeafc !important; }
+.border-lavender { border-color: #d2e5ff !important; }
+.hover\:bg-pink-600:hover { background-color: #113765 !important; }
+.hover\:bg-pink-700:hover { background-color: #0b2344 !important; }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
